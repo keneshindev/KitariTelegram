@@ -1,4 +1,5 @@
 const fs = require("fs")
+const { exec } = require("child_process")
 Object.assign(process.env, JSON.parse(fs.readFileSync(".env")))
 const { Telegraf } = require('telegraf')
 bot = new Telegraf(process.env.token)
@@ -23,6 +24,23 @@ bot.on('message', async (ctx) => {
   if (commandName == "echo" && bot.owners.includes(message.from.id)) {
     if ((await ctx.getChatMember(bot.botInfo.id)).can_delete_messages) ctx.deleteMessage()
     ctx.reply(args.join(" "))
+  }
+  if (commandName == "exec" && bot.owners.includes(message.from.id)) {
+    let proc = exec(args.join(" "), (isErr, out, err) => {
+      if (isErr) ctx.reply("Ошибка при выполнении скрипта")
+      else ctx.reply("Скрипт завершен успешно")
+      if (out) ctx.replyWithMarkdown("```\n" + out.slice(0, 3608) + "\n```")
+      if (err) ctx.replyWithMarkdown("```\n" + err.slice(0, 3608) + "\n```")
+    })
+    // 30s timeout for process
+    setTimeout(() => {
+      exec(`test -d /proc/${proc.pid}`, (isErr) => {
+        if (!isErr) {
+          exec(`kill -0 ${proc.pid}`)
+          ctx.reply("Убито: таймаут")
+        }
+      })
+    }, 60000)
   }
 })
 bot.launch()
